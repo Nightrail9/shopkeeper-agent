@@ -11,3 +11,6 @@ docker/embedding/bge-large-zh-v1.5/pytorch_model.bin
 
 # Virtual environments
 .venv
+
+# Local environment secrets
+.env
