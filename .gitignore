@@ -1,0 +1,13 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Local embedding weights are too large for a regular Git commit.
+docker/embedding/bge-large-zh-v1.5/pytorch_model.bin
+
+# Virtual environments
+.venv
