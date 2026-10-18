@@ -14,3 +14,6 @@ docker/embedding/bge-large-zh-v1.5/pytorch_model.bin
 
 # Local environment secrets
 .env
+
+# IDEA
+.idea/
