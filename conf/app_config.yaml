@@ -26,12 +26,14 @@ db_dw:
 qdrant:
   host: localhost
   port: 6333
-  embedding_dim: 1024
+  embedding_size: 1024
 
 embedding:
   host: localhost
   port: 8081
-  model: BAAI/bge-large-zh-v1.5
+  model: /models/bge-large-zh-v1.5
+  container_name: embedding
+  startup_timeout: 60
 
 es:
   host: localhost

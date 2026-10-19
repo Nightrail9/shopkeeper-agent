@@ -2,13 +2,11 @@
 日志管理器
 """
 
-from math import sin
 import sys
 from pathlib import Path
 
 from loguru import logger
 
-import app
 from app.conf.app_config import app_config
 from app.core.context import request_id_ctx_var
 
@@ -33,8 +31,8 @@ def inject_request_id(record):
 # 移除默认的输出
 logger.remove()
 
-# 注入请求ID到日志记录中
-logger = logger.patch(inject_request_id)
+# 全局注入请求ID到所有模块的日志记录中
+logger.configure(patcher=inject_request_id)
 
 # 添加控制台输出
 if app_config.logging.console.enable:

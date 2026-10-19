@@ -12,7 +12,11 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql:/docker-entrypoint-initdb.d:ro
-    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_general_ci"]
+    command:
+      [
+        "--character-set-server=utf8mb4",
+        "--collation-server=utf8mb4_general_ci",
+      ]
 
   elasticsearch:
     build: ./elasticsearch
@@ -38,7 +42,7 @@ services:
       - elasticsearch
 
   qdrant:
-    image: qdrant/qdrant:v1.16
+    image: qdrant/qdrant:v1.19
     container_name: qdrant
     restart: unless-stopped
     ports:
@@ -48,7 +52,7 @@ services:
       - qdrant_data:/qdrant/storage
 
   embedding:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.8
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
     platform: linux/amd64
     container_name: embedding
     restart: unless-stopped
