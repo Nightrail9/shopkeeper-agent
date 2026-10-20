@@ -20,3 +20,5 @@ docker/embedding/bge-large-zh-v1.5/pytorch_model.bin
 
 # Log files
 logs/
+
+app/AGENTS.md

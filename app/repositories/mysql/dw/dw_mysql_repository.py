@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class DWMysqlRepository:
+class DWMySQLRepository:
     """
     负责查询数据仓库真实表结构和字段示例
     """

@@ -17,7 +17,7 @@ from app.repositories.mysql.meta.mappers.metric_info_mapper import MetricInfoMap
 from app.repositories.mysql.meta.mappers.table_info_mapper import TableInfoMapper
 
 
-class MetaMysqlRepository:
+class MetaMySQLRepository:
     """
     负责把元数据业务实体持久化到 Meta Mysql 数据库
     """
