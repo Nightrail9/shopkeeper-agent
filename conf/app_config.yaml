@@ -41,6 +41,6 @@ es:
   index_name: data_agent
 
 llm:
-  mode_name: deepseek-ai/DeepSeek-V4.1-Flash
+  mode_name: deepseek-ai/DeepSeek-V4.1-Flash-1017
   api_key: ${oc.env:LLM_API_KEY,''}
   base_url: https://api-inference.modelscope.cn/v1

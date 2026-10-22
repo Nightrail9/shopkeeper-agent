@@ -1,4 +1,6 @@
-""" """
+"""
+元数据知识构建配置
+"""
 
 from dataclasses import dataclass
 

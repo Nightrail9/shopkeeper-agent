@@ -80,3 +80,15 @@ class MetaMySQLRepository:
         )
         result = await self.session.execute(stmt)
         return [ColumnInfoMapper.to_entity(column) for column in result.scalars().all()]
+
+    async def get_table_info_by_id(self, table_id: str) -> TableInfo | None:
+        """
+        根据表 ID 获取表元数据
+        """
+        table_info: TableInfoMySQL | None = await self.session.get(
+            TableInfoMySQL, table_id
+        )
+        if table_info:
+            return TableInfoMapper.to_entity(table_info)
+        else:
+            return None

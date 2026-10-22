@@ -33,7 +33,7 @@ class DWMySQLRepository:
         result = await self.session.execute(text(sql))
         return list(result.scalars().all())
 
-    async def get_db_info(self):
+    async def get_db_info(self) -> dict[str, str]:
         """
         获取当前数据仓库的方言和版本
         """
@@ -42,7 +42,7 @@ class DWMySQLRepository:
         version = result.scalar()
 
         dialect = self.session.bind.dialect.name
-        return f"dialect: {dialect}, version: {version}"
+        return {"dialect": dialect, "version": version}
 
     async def validate(self, sql: str):
         """
