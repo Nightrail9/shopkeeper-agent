@@ -30,7 +30,7 @@ dependencies = [
 ]
 
 [project.scripts]
-shopkeeper-agent = "app:main"
+shopkeeper-agent = "main:run"
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13.0"]
