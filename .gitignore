@@ -5,6 +5,9 @@ build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
 # Local embedding weights are too large for a regular Git commit.
 docker/embedding/bge-large-zh-v1.5/pytorch_model.bin
@@ -14,11 +17,28 @@ docker/embedding/bge-large-zh-v1.5/pytorch_model.bin
 
 # Local environment secrets
 .env
+.env.*
+!.env.example
 
 # IDEA
 .idea/
 
 # Log files
 logs/
+*.log
 
+# Agent docs
 app/AGENTS.md
+
+# Project docs
+docs/
+
+# Frontend build output and dependencies
+frontend/node_modules/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+*.tsbuildinfo
+
+# Exported agent session transcripts
+omp-session-*.html

@@ -2,79 +2,86 @@
 
 ## Project Overview
 
-`shopkeeper-agent` is an early-stage Python service scaffold targeting a FastAPI + LangChain/LangGraph agent with MySQL, Elasticsearch, and Qdrant backends. Only configuration loading, async ES/Qdrant client managers, and one ES index mapping are implemented so far; the console entry point still prints a greeting. Do not treat declared dependencies or package names as implemented features — most `app/` subpackages are empty.
+`shopkeeper-agent` implements an e-commerce natural-language analytics service: users ask questions, the backend retrieves business metadata, generates and checks MySQL SQL, runs it against the warehouse, and streams progress/results to a React frontend. The runtime depends on MySQL, Elasticsearch, Qdrant, an OpenAI-compatible embedding service, and an LLM API.
 
 ## Architecture & Data Flow
 
-The actual runtime flow today:
-
-1. `app/conf/app_config.py` loads `.env` (via `python-dotenv`), reads `conf/app_config.yaml`, merges it with `OmegaConf.structured(AppConfig)` defaults, and exports a module-level `app_config` singleton. `AppConfig` composes dataclasses: `LoggingConfig`, `DBConfig`, `QdrantConfig`, `EmbeddingConfig`, `ESConfig`, `LLMConfig` (LLM key resolved from `${oc.env:LLM_API_KEY,''}`).
-2. `app/clients/es_client_manager.py` and `app/clients/qdrant_client_manager.py` each define a manager class taking its config dataclass and a module-level singleton (`es_client_manager`, `qdrant_client_manager`) built from `app_config`. Managers hold an optional async SDK client (`AsyncElasticsearch` / `AsyncQdrantClient`), with `init()` to construct it and `close()` to shut it down.
-3. `app/repositories/es/value_es_repository.py` currently contains only an `index_mappings` constant (`dynamic=False`, `value` field using `ik_max_word` analyzer); no repository classes exist yet.
-4. `app/__init__.py::main()` is the console entry point and only prints `Hello from shopkeeper-agent!`.
-
-Both client manager modules include `if __name__ == "__main__"` demos that exercise the real services (index/upsert/search against local Docker instances) — useful as usage examples.
+- HTTP entry point: `main.py` creates the FastAPI app, installs request-ID middleware and lifespan, and binds Uvicorn to `127.0.0.1:8000`. The `shopkeeper-agent` console script invokes `main:run`; `app/__init__.py::main` only prints a greeting and is not the API launcher.
+- Query flow: `POST /api/query` → `QueryService` → LangGraph nodes → metadata/value retrieval and LLM SQL generation → `EXPLAIN` validation (one correction attempt) → DW MySQL execution → SSE progress/result/error events. Frontend step labels in `frontend/src/components/StepRail.tsx` must exactly match backend node `step` strings.
+- Metadata indexing: `app/scripts/build_meta_knowledge.py` loads `conf/meta_config.yaml`, reads warehouse metadata and values, and writes relational metadata plus Qdrant vectors and Elasticsearch values. This rebuild deletes/recreates affected records, collections, and index; it is not read-only or incremental.
+- Layers: API routes/schemas/dependencies, services, LangGraph agent/nodes, client managers, and repositories. Services receive repositories/clients through constructors; FastAPI dependencies assemble request-scoped services. There is no general-purpose DI container.
+- SQL `EXPLAIN` is not a read-only SQL allowlist or security boundary. The query API has no authentication; keep the backend bound to loopback unless access controls are added.
 
 ## Key Directories
 
-- `app/conf/`: configuration dataclasses and loader (`app_config.py`).
-- `app/clients/`: external service client managers (Elasticsearch, Qdrant).
-- `app/repositories/`: persistence layer; only `es/value_es_repository.py` mapping so far.
-- `app/agent/`, `app/api/`, `app/core/`, `app/entities/`, `app/models/`, `app/prompt/`, `app/services/`, `app/scripts/`: empty packages (zero-byte `__init__.py`); keep new code inside the matching boundary.
-- `conf/`: runtime config `app_config.yaml` (logging → `logs/`, MySQL :3306, Qdrant :6333, embedding :8081, Elasticsearch :9200, LLM).
-- `docker/`: `docker-compose.yaml` (mysql, elasticsearch, kibana, qdrant, embedding), `mysql/{meta.sql,dw.sql}` init scripts (run only on empty data dir), `elasticsearch/Dockerfile` + `plugins/elasticsearch-analysis-ik-8.19.10.zip`, `embedding/bge-large-zh-v1.5/` local model assets.
-- `prompts/`, `logs/`: placeholders (`.gitkeep` only).
+- `app/api/`: FastAPI routes, Pydantic schemas, dependencies, and client lifespan.
+- `app/agent/`: LangGraph state, runtime context, graph, and nodes.
+- `app/services/`: query/SSE orchestration and metadata knowledge construction.
+- `app/repositories/`: MySQL, Qdrant, and Elasticsearch persistence and retrieval.
+- `app/clients/`: async database/search/vector clients and embedding HTTP clients.
+- `app/conf/`, `conf/`: typed configuration loaders/schemas and YAML settings.
+- `app/models/`, `app/entities/`: SQLAlchemy ORM models and dataclass business entities.
+- `prompts/`: prompt templates loaded by `app/prompt/prompt_loader.py`.
+- `frontend/src/`: React UI and API/SSE types; `docker/`: local service definitions and MySQL initialization assets.
 
 ## Development Commands
 
-```bash
-uv sync                  # install locked deps (creates .venv with Python 3.14)
-uv build                 # build package (uv_build backend)
-uv run shopkeeper-agent  # console entry point -> prints greeting
-python -c "from app import main; main()"  # direct smoke run (verified)
-```
-
-Local services (from `README.md`, in Chinese):
+Run from the repository root unless noted:
 
 ```bash
-docker compose -f docker/docker-compose.yaml config   # validate
-docker compose -f docker/docker-compose.yaml up -d    # start mysql/es/kibana/qdrant/embedding
-docker compose -f docker/docker-compose.yaml down     # stop, keep data volumes
-uv run hf download BAAI/bge-large-zh-v1.5 --local-dir docker/embedding/bge-large-zh-v1.5  # model weights if missing
+uv sync
+uv build
+uv run shopkeeper-agent
+docker compose -f docker/docker-compose.yaml config
+docker compose -f docker/docker-compose.yaml up -d
+docker compose -f docker/docker-compose.yaml down
 ```
 
-Copy `.env.example` to `.env` and set `LLM_API_KEY`; `.env` is gitignored.
+The backend command starts on `127.0.0.1:8000`. MySQL initialization scripts run only for an empty data directory; `down -v` permanently deletes persisted local data and should not be used casually. Download missing embedding model files with:
+
+```bash
+uv run hf download BAAI/bge-large-zh-v1.5 --local-dir docker/embedding/bge-large-zh-v1.5
+```
+
+Frontend commands run in `frontend/`:
+
+```bash
+pnpm install
+pnpm dev       # Vite on :5173; /api proxies to the backend
+pnpm lint      # TypeScript check, not ESLint
+pnpm build     # TypeScript check + production build
+```
+
+Build metadata with `uv run python -m app.scripts.build_meta_knowledge --config_path conf/meta_config.yaml`; this modifies/deletes external service data. Review script side effects before running any client or example `__main__` demo.
 
 ## Code Conventions & Common Patterns
 
-- Naming: `snake_case` functions/variables/module instances, `PascalCase` classes. Existing constant (`index_mappings`) is lowercase — follow surrounding style rather than imposing `UPPER_SNAKE_CASE`.
-- Configuration pattern: structured OmegaConf dataclasses with inline defaults, merged over `conf/app_config.yaml`; env secrets via `${oc.env:...}` interpolation. Extend `AppConfig` dataclasses rather than reading YAML ad hoc.
-- Client pattern: manager class constructed with its config dataclass, optional async client field, `init()`/`close()` lifecycle, module-level singleton from `app_config`. No DI framework.
-- Async: `asyncio`-based SDK clients (`elasticsearch[async]`, `qdrant-client` async), demos driven by `asyncio.run`. ES demo uses `try/finally` to guarantee `close()` — replicate that when adding service-touching code.
-- Type annotations: present on public entry points and client fields but inconsistent on internal methods; add annotations to new public interfaces.
-- No module docstrings or `__all__` anywhere; package `__init__.py` files stay empty.
+- Follow existing Python naming: `snake_case` for modules/functions/variables, `PascalCase` for classes; use `app.*` absolute imports. Add annotations to public interfaces and follow neighboring docstring/comment style.
+- Extend structured dataclasses and OmegaConf configuration rather than reading YAML ad hoc. Secrets come from `.env` interpolation; never commit secret values.
+- Client managers are module-level singletons with explicit `init()`/`close()` lifecycle. Initialize/close them through `app/api/lifespan.py`; close async clients in `finally` or lifespan cleanup.
+- Keep request-scoped SQLAlchemy sessions in FastAPI dependencies. Repositories use the injected session; service-level `session.begin()` owns transaction boundaries.
+- LangGraph nodes take `(state, runtime)`, read shared dependencies from `runtime.context`, and return partial state updates. Emit progress using the existing stream event shape and preserve the current SSE one-line JSON framing (`data: ...\n\n`).
+- Use `app.core.log.logger` for application logs and the existing request-ID `ContextVar` integration. LLM prompts live in `prompts/`; compose chains using neighboring LangChain prompt/parser patterns.
 
 ## Important Files
 
-- `pyproject.toml`: metadata, dependencies, `shopkeeper-agent = "app:main"` script, `uv_build` backend.
-- `uv.lock`: locked dependency graph (requires Python >=3.14); never hand-edit resolved versions.
-- `.python-version`: pins Python `3.14`.
-- `conf/app_config.yaml`: single source of runtime service configuration.
-- `.env.example`: `LLM_API_KEY` template.
-- `docker/docker-compose.yaml`: local service topology and ports.
-- `app/conf/app_config.py`, `app/clients/es_client_manager.py`, `app/clients/qdrant_client_manager.py`, `app/repositories/es/value_es_repository.py`: the only implemented modules.
-- `README.md`: Chinese local-setup guide (Docker services, MySQL init caveat, model download, `.env`).
-- `docker/embedding/bge-large-zh-v1.5/README.md`: upstream FlagEmbedding docs, not project setup. `pytorch_model.bin` is gitignored (large weights).
+- `main.py`: Uvicorn/FastAPI launcher.
+- `app/api/routers/query_router.py`, `app/services/query_service.py`: query endpoint and SSE orchestration.
+- `app/agent/graph.py`, `app/agent/nodes/`, `app/agent/state.py`: query graph and shared state.
+- `app/services/meta_knowledge_service.py`, `app/scripts/build_meta_knowledge.py`: metadata indexing workflow and CLI.
+- `app/conf/app_config.py`, `app/conf/meta_config.py`, `conf/app_config.yaml`, `conf/meta_config.yaml`: configuration schemas and values.
+- `pyproject.toml`, `uv.lock`, `.python-version`: Python package, locked dependencies, and runtime version.
+- `docker/docker-compose.yaml`, `README.md`, `frontend/README.md`: local infrastructure and run instructions.
 
 ## Runtime/Tooling Preferences
 
-- Python `>=3.14` (pinned in `.python-version` and `uv.lock`); `uv` manages the interpreter and venv. A system Python 3.13 can run the trivial smoke import but is not the project runtime.
-- Package manager: `uv` only; there is no Node/Bun toolchain.
-- Declared stack (mostly not yet wired): FastAPI, LangChain + LangGraph + langchain-deepseek/huggingface, SQLAlchemy 2 + asyncmy, elasticsearch[async], qdrant-client, loguru, omegaconf, jieba. Their presence in metadata does not mean services are implemented or configured in code.
-- Dev dependency group contains only `ipykernel`.
+- Python `>=3.14`; use `uv` for Python environments, dependencies, and builds. Do not hand-edit `uv.lock`; Elasticsearch dependency is constrained to `>=8,<9`.
+- Frontend uses pnpm (`pnpm@10.33.0`) with React 19, TypeScript, and Vite. Use `pnpm` in `frontend/`; no repository Node version pin exists.
+- The Embedding container targets `linux/amd64` and reads local model assets; weights are excluded from Git. Local `.env` files contain secrets and are ignored.
 
 ## Testing & QA
 
-- No `tests/` directory, test framework, coverage config, lint/format/typecheck config, pre-commit, or CI workflow exists. Do not cite a test or lint command as project-defined.
-- Verification today: run the entry point (`uv run shopkeeper-agent`) or the direct smoke command above; for service-touching modules, run the module's `__main__` demo against the Docker Compose stack.
-- When adding testable behavior, introduce a focused test setup and document the command here.
+- No automated backend/frontend test suite, coverage target, or Python lint/typecheck command is configured. Do not report manual service demos as tests.
+- `pnpm lint` performs TypeScript checking; `pnpm build` checks types and builds the UI. Both run from `frontend/`.
+- Client `__main__` blocks and examples are service-touching manual demos; some create, upsert, or delete data. The metadata build is destructive. Inspect effects and use disposable data before running them.
+- End-to-end query/SSE checks require the backend, configured `.env`, and external services. Frontend dev proxy defaults to `http://127.0.0.1:8000`; the contract is `POST /api/query` with JSON `{"query":"..."}` and `text/event-stream` responses.
