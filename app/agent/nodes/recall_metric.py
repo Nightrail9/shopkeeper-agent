@@ -42,7 +42,7 @@ async def recall_metric(state: DataAgentState, runtime: Runtime[DataAgentContext
 
         metric_info_map: dict[str, MetricInfo] = {}
         for keyword in keywords:
-            embedding = await embedding_client.embed_query(keyword)
+            embedding = await embedding_client.aembed_query(keyword)
             current_metric_infos: list[MetricInfo] = (
                 await metric_qdrant_repository.search(
                     embedding,

@@ -113,7 +113,7 @@ class MetaKnowledgeService:
         """
         embeddings: list[list[float]] = []
         embeddings_texts = [point["embedding_text"] for point in points]
-        embeddings_batch_size = 20
+        embeddings_batch_size = 4
         for i in range(0, len(embeddings_texts), embeddings_batch_size):
             batch_embeddings_texts = embeddings_texts[i : i + embeddings_batch_size]
             batch_embeddings = await self.embedding_client.aembed_documents(

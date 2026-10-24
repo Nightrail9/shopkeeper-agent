@@ -56,6 +56,7 @@ async def filter_table(state: DataAgentState, runtime: Runtime[DataAgentContext]
         logger.info(
             f"过滤后的表信息: {[table_info['name'] for table_info in filtered_table_infos]}"
         )
+        writer({"type": "progress", "step": step, "status": "success"})
         return {"table_infos": filtered_table_infos}
 
     except Exception as e:

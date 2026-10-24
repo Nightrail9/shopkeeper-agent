@@ -44,7 +44,7 @@ async def recall_column(state: DataAgentState, runtime: Runtime[DataAgentContext
 
         column_info_map: dict[str, ColumnInfo] = {}
         for keyword in keywords:
-            embedding = await embedding_client.embed_query(keyword)
+            embedding = await embedding_client.aembed_query(keyword)
             current_column_infos: list[ColumnInfo] = (
                 await column_qdrant_repository.search(embedding)
             )
